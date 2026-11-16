@@ -67,7 +67,12 @@ class HomePage(Page):
     def show_version_text(self, version: str, build: str):
         support_str: str = "<span style=\"color: #32d74b;\">" + QCoreApplication.tr("Supported!") + "</span></a>"
         if not self.window.device_manager.get_current_device_supports_restore():
-            support_str = "<span style=\"color: #ff0000;\">" + QCoreApplication.tr("Not Supported.") + "</span></a>"
+            if self.window.device_manager.get_current_device_has_airlift():
+                # restore backends are version-gated off, but AirLift
+                # tweaks (passcode themes) still work on this device
+                support_str = "<span style=\"color: #ffff00;\">"+ QCoreApplication.tr("Partially Supported (AirLift).") + "</span></a>"
+            else:
+                support_str = "<span style=\"color: #ff0000;\">" + QCoreApplication.tr("Not Supported.") + "</span></a>"
         elif self.window.device_manager.get_current_device_patched():
             # sparserestore/bookrestore fully patched
             support_str = "<span style=\"color: #ffff00;\">"+ QCoreApplication.tr("Partially Supported.") + "</span></a>"
