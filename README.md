@@ -8,12 +8,20 @@ Customize your device with animated wallpapers, disable pesky daemons, and more!
 Make sure you have installed the [requirements](#requirements) if you are on Windows or Linux.
 
 > [!WARNING]
-> DO NOT USE THIS ON iOS 27! It will most likely result in data loss. Apple has patched the partial restore method that Nugget uses.
+> DO NOT USE THE RESTORE-BASED TWEAKS ON iOS 27! It will most likely result in data loss. Apple has patched the partial restore method that Nugget uses.
+> On iOS 27, only the AirLift-based features below (passcode themes) are supported.
 
 > [!NOTE]
 > Please back up your data before using this Project! Nugget may cause unforeseen problems, so it is better to be safe than sorry. We are not responsible for any damage done to your device.
 
 ## Features
+<details>
+<summary>iOS 26.2 - 27.0 (via AirLift)</summary>
+
+- Passcode Themes: custom passcode keypads from `.passthm` packages, written over USB/Wi-Fi with AirLift (no restore, no reboot)
+  - AirLift can only create *new* files, so a theme whose files already exist on the device will be skipped
+  - MobileGestalt/AI tweaks are **not** supported over AirLift and will never be, do not make issues asking for it
+</details>
 <details>
 <summary>iOS 17.0 - 26.0+</summary>
 
@@ -198,6 +206,11 @@ Sparserestore works on all versions iOS 17.0-18.1.1.
 
 BookRestore works on all versions iOS 18.2-26.1.
 
+## AirLift Info
+AirLift uses the AirTraffic (Apple Books sync) path to write *new* files outside of the intended sync location, without a restore and without rebooting. Because it can only create new files (it cannot overwrite existing ones) and has no path to mobilegestalt, Nugget uses it for passcode themes on versions where Sparserestore/BookRestore are patched.
+
+AirLift works on iOS 18.0-27.0.1 and iOS 27.2 beta 1-2. **It was patched in iOS 27.2 beta 3, so it does not work on iOS 27.2 beta 3 or later.** iPhone only; the device must be unlocked and trust this computer.
+
 > [!NOTE]
 > **Mobilegestalt and AI Enabler tweaks are not supported on iOS 26.2+.** It will never be supported, do not make issues asking for when it is supported.
 
@@ -228,6 +241,8 @@ If you would like to read more about the inner workings of the exploit and iOS r
 - [lrdsnow][lrdsnowGitHub] for [EU Enabler][EUEnablerGitHub]
 - [pymobiledevice3][pymobiledevice3GitHub] for restoring and device algorithms.
 - [PySide6][PySide6Doc] for the GUI library.
+- [0xjohnnydev][0xjohnnydevGitHub] for AirLift (AirTraffic/ATAirlock research)
+- [awesomenull-dev][awesomenullGitHub] and GoldenNugget for the Python AirLift implementation ([PyAirLift][PyAirLiftGitHub]), vendored in `src/airlift`
 
 [NuggetLogo]: https://github.com/leminlimez/Nugget/blob/9553a3dff5e2c1f8e6818109e8862e3a5eea429f/src/qt/credits/small_nugget.png
 [CowabungaLite]: https://github.com/leminlimez/CowabungaLite
@@ -256,6 +271,9 @@ If you would like to read more about the inner workings of the exploit and iOS r
 [EUEnablerGitHub]: https://github.com/Lrdsnow/EUEnabler
 [pymobiledevice3GitHub]: https://github.com/doronz88/pymobiledevice3
 [PySide6Doc]: https://doc.qt.io/qtforpython-6/
+[0xjohnnydevGitHub]: https://github.com/0xjohnnydev
+[awesomenullGitHub]: https://github.com/awesomenull-dev
+[PyAirLiftGitHub]: https://github.com/awesomenull-dev/PyAirLift
 [python-aar-stuffGitHub]: https://github.com/0xilis/python-aar-stuff
 [AIEligibilityGist]: https://gist.github.com/f1shy-dev/23b4a78dc283edd30ae2b2e6429129b5
 [bl_sbxGitHub]: https://github.com/khanhduytran0/bl_sbx/tree/main
