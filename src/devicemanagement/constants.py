@@ -3,6 +3,10 @@ from enum import Enum
 MIN_VERSION = "17.0"
 MAX_VERSION = "26.9"
 
+# AirLift (ATAirlock) was patched in iOS 27.2 beta 3 (build 24B5099f);
+# the only 27.2 builds it still works on are beta 1 and beta 2.
+AIRLIFT_WORKING_27_2_BUILDS = {"24B5084k", "24B5089g"}
+
 class Device:
     def __init__(self, 
                 udid: int, usb: bool, name: str,
@@ -33,6 +37,22 @@ class Device:
             return True
         return False
     
+    def has_airlift(self) -> bool:
+        # AirLift (src/airlift) writes *new* files via the AirTraffic/Books
+        # sync path. It is iPhone-only (the driver itself enforces this)
+        # and was patched in iOS 27.2 beta 3 and later; upstream reports it
+        # working on iOS 18.0-27.0.1 and the 27.2 betas before the patch.
+        # Note: this does NOT cover MobileGestalt - there is no AirLift
+        # path to it - so it does not change is_exploit_fully_patched().
+        if not self.model.startswith("iPhone"):
+            return False
+        parsed_ver: Version = Version(self.version)
+        if parsed_ver < Version("18.0"):
+            return False
+        if parsed_ver < Version("27.2"):
+            return True
+        return self.build in AIRLIFT_WORKING_27_2_BUILDS
+
     def has_partial_sparserestore(self) -> bool:
         parsed_ver: Version = Version(self.version)
         if (parsed_ver < Version("18.2")
