@@ -43,6 +43,7 @@ from src.tweaks.basic_plist_locations import FileLocation
 
 from src.restore import reboot_device
 from src.restore.restore import restore_files, FileToRestore
+from src.restore.airlift_restore import restore_files_via_airlift
 from src.restore.bookrestore import perform_bookrestore, create_server_folder, create_local_server, cleanup_server_folder, close_dl_connection, generate_bldbmanager, br_files
 from src.restore.bookrestore import BookRestoreFileTransferMethod, BookRestoreApplyMethod
 from src.restore.mbdb import _FileMode
@@ -264,6 +265,12 @@ class DeviceManager:
         else:
             return self.data_singleton.current_device.has_bookrestore()
     
+    def get_current_device_has_airlift(self) -> bool:
+        if self.data_singleton.current_device == None:
+            return False
+        else:
+            return self.data_singleton.current_device.has_airlift()
+
     def get_current_device_patched(self) -> bool:
         if self.data_singleton.current_device == None:
             return True
@@ -533,6 +540,31 @@ class DeviceManager:
         ))
     
     ## APPLYING OR REMOVING TWEAKS AND RESTORING
+    async def start_airlift_restore(self, files_to_restore: list[FileToRestore], update_label=lambda x: None):
+        # AirLift delivery: no backup restore and no reboot. This is the
+        # only backend available when SparseRestore/BookRestore are patched
+        # (iOS 26.2+/27.x), so it intentionally does not go through the
+        # supported()-version gate that guards the restore backends.
+        if not self.get_current_device_has_airlift():
+            raise NuggetException(QCoreApplication.tr("AirLift is not available for this device. It requires an iPhone on iOS 18.0-27.0.1 (or iOS 27.2 beta 1-2); Apple patched it in iOS 27.2 beta 3."))
+        self.update_label = update_label
+        self.do_not_unplug = ""
+        if self.data_singleton.current_device.connected_via_usb:
+            self.do_not_unplug = "\n" + QCoreApplication.tr("DO NOT UNPLUG")
+        update_label(QCoreApplication.tr("Applying via AirLift...") + self.do_not_unplug)
+        async with await create_using_usbmux(serial=self.data_singleton.current_device.udid) as ld:
+            result = await restore_files_via_airlift(
+                files=files_to_restore,
+                lockdown_client=ld,
+                progress_callback=self.progress_callback
+            )
+        msg = QCoreApplication.tr("Applied via AirLift. No reboot is needed.")
+        if len(result["failures"]) > 0:
+            # AirLift can only create new files; a file that already exists
+            # on the device (e.g. applying the same theme twice) is skipped.
+            msg += "\n\n" + QCoreApplication.tr("Skipped files that already exist on the device (AirLift can only create new files):") + "\n" + "\n".join(result["failures"])
+        return ApplyAlertMessage(txt=QCoreApplication.tr("All done! ") + msg, title=QCoreApplication.tr("Success!"), icon=QMessageBox.Information)
+
     async def start_restore(self, files_to_restore: list[FileToRestore], use_bookrestore: bool, update_label=lambda x: None, skips_br_for_folders: bool=False, reboot_for_br: bool=False):
         # prevent restores if on an unsafe version
         if not self.get_current_device_supports_restore():
@@ -648,6 +680,9 @@ class DeviceManager:
             # create the restore file list
             files_to_restore: list[FileToRestore] = [
             ]
+            # files delivered over AirLift instead of a restore (see below)
+            airlift_files: list[FileToRestore] = [
+            ]
             tmp_dirs = [] # temporary directory for unzipping pb and template files
 
             # set the plist keys
@@ -658,11 +693,18 @@ class DeviceManager:
                     if tweak.enabled:
                         use_bookrestore = True
                 elif isinstance(tweak, PasscodeThemeTweak):
-                    # must use bookrestore
                     passcode_files = tweak.apply_tweak()
                     if passcode_files is not None and len(passcode_files) > 0:
-                        files_to_restore.extend(passcode_files)
-                        use_bookrestore = True
+                        if self.get_current_device_has_airlift() and self.get_current_device_patched():
+                            # SparseRestore/BookRestore are patched on this
+                            # version (iOS 26.2+/27.x): the passcode theme
+                            # files are new cache files, which is exactly
+                            # what AirLift can write. No restore, no reboot.
+                            airlift_files.extend(passcode_files)
+                        else:
+                            # must use bookrestore
+                            files_to_restore.extend(passcode_files)
+                            use_bookrestore = True
                 elif isinstance(tweak, EligibilityTweak):
                     eligibility_files = tweak.apply_tweak()
                     if tweak.enabled:
@@ -810,7 +852,17 @@ class DeviceManager:
                 files_to_restore.extend(tweaks[TweakID.CreateBRFolders].apply_tweak())
 
             # restore to the device
-            final_alert = await self.start_restore(files_to_restore, use_bookrestore, update_label, skips_br_for_folders=tweaks[TweakID.CreateBRFolders].enabled, reboot_for_br=(len(flag_plist) > 0))
+            final_alert = None
+            if len(airlift_files) > 0:
+                # AirLift files are delivered without a restore, so do this
+                # first: on versions where the restore backends are patched
+                # (and start_restore would be version-gated) an AirLift-only
+                # apply must still go through.
+                final_alert = await self.start_airlift_restore(airlift_files, update_label)
+            if len(files_to_restore) > 0 or final_alert == None:
+                restore_alert = await self.start_restore(files_to_restore, use_bookrestore, update_label, skips_br_for_folders=tweaks[TweakID.CreateBRFolders].enabled, reboot_for_br=(len(flag_plist) > 0))
+                if final_alert == None:
+                    final_alert = restore_alert
             update_label(QCoreApplication.tr("Success!"))
         except Exception as e:
             final_alert = show_apply_error(e, update_label, files_list=files_to_restore)
